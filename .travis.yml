@@ -1,16 +1,14 @@
 language: python
 
 python:
-	- 3.4
-	- 3.5
-	- 3.6
+  - "3.5"
 
 install:
-	- pip install --upgrade pip codecov
-	- pip install codecov
+  - pip install --upgrade pip codecov
+  - pip install codecov
 
 script: py.test
 
 notifications:
-	email: false
+  email: false
 
