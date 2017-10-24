@@ -1,6 +1,6 @@
 import pytest
 
-from cbir import index, search
+from cbir import index
 
 def test_123():
 	assert True
