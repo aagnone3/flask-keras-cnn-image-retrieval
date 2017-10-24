@@ -1,7 +1,8 @@
 #! /bin/bash
 
-echo ${PWD}
-ls
-env
-py.test -xs test
+# vars
+PYTEST_OPTIONS=-xs
+
+# invocation
+py.test ${PYTEST_OPTIONS} test
 
