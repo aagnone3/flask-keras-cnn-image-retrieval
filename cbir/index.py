@@ -1,22 +1,30 @@
 # -*- coding: utf-8 -*-
 import os
-import numpy as np
-from numpy.linalg import norm
-import argparse
+from tqdm import tqdm
 import logging
+import argparse
+import numpy as np
 import multiprocessing as mp
+from numpy.linalg import norm
+
 try:
     import cPickle as pickle
-except:
+except ImportError:
     import pickle
+
 from keras.applications.vgg16 import VGG16
 from keras.preprocessing.image import load_img, img_to_array
 from keras.applications.vgg16 import preprocess_input
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-input_shape = (224, 224, 3)
-model = VGG16(weights = 'imagenet', input_shape = (input_shape[0], input_shape[1], input_shape[2]), pooling = 'max', include_top = False)
+
+INPUT_SHAPE = (224, 224, 3)
+# INPUT_SHAPE = (512, 512, 3)
+model = VGG16(weights="imagenet",
+              input_shape=(INPUT_SHAPE[0], INPUT_SHAPE[1], INPUT_SHAPE[2]),
+              pooling="max",
+              include_top=False)
 
 
 def extract_feat(img_path):
@@ -24,10 +32,7 @@ def extract_feat(img_path):
      Use vgg16 model to extract features
      Output normalized feature vector
     """
-    # weights: 'imagenet'
-    # pooling: 'max' or 'avg'
-    # input_shape: (width, height, 3), width and height should >= 48
-    img = img_to_array(load_img(img_path, target_size=(input_shape[0], input_shape[1])))
+    img = img_to_array(load_img(img_path, target_size=(INPUT_SHAPE[0], INPUT_SHAPE[1])))
     img = preprocess_input(np.expand_dims(img, axis=0))
     feat = model.predict(img)
     norm_feat = feat[0] / norm(feat[0])
@@ -35,31 +40,35 @@ def extract_feat(img_path):
 
 
 def parse_args():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-directory", required = True,
-        help = "Name of directory which contains images to be indexed")
-    ap.add_argument("-index", required = True,
-        help = "Name of index file")
-    return ap.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--file_list", dest="file_list_fn", required=True,
+                        help="Name of directory which contains images to be indexed")
+    parser.add_argument("-o", "--output", dest="index_fn", required=True,
+                        help="Name of index file")
+    return parser.parse_args()
 
 
-if __name__ == "__main__":
+def index_features(args):
     """
-     Extract features and index the images
+    Extract features and index the images.
+    :param args:
+        Namespace arguments.
+    :return:
+        No return value.
     """
 
-    args = parse_args()
-
-    with open(args.fn) as fp:
+    with open(args.file_list_fn) as fp:
         img_list = list(map(lambda line: line.strip("\n"), fp.readlines()))
-    
+
     feats = []
-    for i, img_path in enumerate(img_list):
-        logger.info("Extracting embedding from image {}/{}".format(i, len(img_list)))
+    for i, img_path in tqdm(enumerate(img_list), total=len(img_list)):
         feats.append(extract_feat(img_path))
     feats = np.array(feats)
 
     logger.info("Writing extracted embeddings to disk.")
-    with open(args.index, 'wb') as fp:
-        pickle.dump({'features': feats, 'names': img_list}, fp)
+    with open(args.index_fn, "wb") as fp:
+        pickle.dump({"features": feats, "names": img_list}, fp)
 
+
+if __name__ == "__main__":
+    index_features(parse_args())

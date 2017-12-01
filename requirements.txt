@@ -1,4 +1,6 @@
 numpy
 keras
+h5py
+tqdm
 tensorflow
 matplotlib
