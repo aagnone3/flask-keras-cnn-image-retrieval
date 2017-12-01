@@ -2,19 +2,37 @@
 import os
 import numpy as np
 from numpy.linalg import norm
-
 import argparse
 import logging
+import multiprocessing as mp
 try:
     import cPickle as pickle
 except:
     import pickle
 from keras.applications.vgg16 import VGG16
-from keras.preprocessing import image
+from keras.preprocessing.image import load_img, img_to_array
 from keras.applications.vgg16 import preprocess_input
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+input_shape = (224, 224, 3)
+model = VGG16(weights = 'imagenet', input_shape = (input_shape[0], input_shape[1], input_shape[2]), pooling = 'max', include_top = False)
+
+
+def extract_feat(img_path):
+    """
+     Use vgg16 model to extract features
+     Output normalized feature vector
+    """
+    # weights: 'imagenet'
+    # pooling: 'max' or 'avg'
+    # input_shape: (width, height, 3), width and height should >= 48
+    img = img_to_array(load_img(img_path, target_size=(input_shape[0], input_shape[1])))
+    img = preprocess_input(np.expand_dims(img, axis=0))
+    feat = model.predict(img)
+    norm_feat = feat[0] / norm(feat[0])
+    return norm_feat
+
 
 def parse_args():
     ap = argparse.ArgumentParser()
@@ -25,58 +43,23 @@ def parse_args():
     return ap.parse_args()
 
 
-def get_image_fns(path):
-    '''
-     Returns a list of filenames for all jpg images in a directory. 
-    '''
-    return [os.path.join(path,f) for f in os.listdir(path) if f.endswith('.jpg')]
-
-
-def extract_feat(img_path):
-    '''
-     Use vgg16 model to extract features
-     Output normalized feature vector
-    '''
-    # weights: 'imagenet'
-    # pooling: 'max' or 'avg'
-    # input_shape: (width, height, 3), width and height should >= 48
-    
-    input_shape = (224, 224, 3)
-    model = VGG16(weights = 'imagenet', input_shape = (input_shape[0], input_shape[1], input_shape[2]), pooling = 'max', include_top = False)
-        
-    img = image.load_img(img_path, target_size=(input_shape[0], input_shape[1]))
-    img = image.img_to_array(img)
-    img = np.expand_dims(img, axis=0)
-    img = preprocess_input(img)
-    feat = model.predict(img)
-    norm_feat = feat[0]/norm(feat[0])
-    return norm_feat
-
-
 if __name__ == "__main__":
-    '''
+    """
      Extract features and index the images
-    '''
+    """
 
     args = parse_args()
-    img_list = get_image_fns(args.directory)
-    
-    logger.info("Extracting embeddings from {} images in {}".format(len(img_list), args.directory))
+
+    with open(args.fn) as fp:
+        img_list = list(map(lambda line: line.strip("\n"), fp.readlines()))
     
     feats = []
-    names = []
     for i, img_path in enumerate(img_list):
-        norm_feat = extract_feat(img_path)
-        img_name = os.path.split(img_path)[1]
-        feats.append(norm_feat)
-        names.append(os.path.join(args.directory, img_name))
         logger.info("Extracting embedding from image {}/{}".format(i, len(img_list)))
+        feats.append(extract_feat(img_path))
     feats = np.array(feats)
 
-    # directory for storing extracted features
-    output = args.index
-    
     logger.info("Writing extracted embeddings to disk.")
-    with open(output, 'wb') as fp:
-        pickle.dump({'features': feats, 'names': names}, fp)
+    with open(args.index, 'wb') as fp:
+        pickle.dump({'features': feats, 'names': img_list}, fp)
 
